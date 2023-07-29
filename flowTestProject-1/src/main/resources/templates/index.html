@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<style>
+			.customSpan{
+				border: 1px solid black;
+				margin: 5px;
+				border-radius: 5px;
+			}
+			
+			.exeDelete{
+				background: none;
+  				border: none;
+			}
+			
+		</style>
+		<meta charset="UTF-8">
+		<title>FLOW TEST</title>
+	</head>
+	<body>
+		<table>
+			<tr>
+				<td>고정확장자</td>
+				<td id="defaultList">
+					<span id="defaultItem" style="display:none;">
+						<input type="checkbox" id="useChk">
+						<span id="name">-</span>
+					</span>
+				</td>
+			</tr>
+			<tr>
+				<td rowspan="2">커스텀 확장자</td>
+				<td>
+					<input tpye="text" id="addCustomName" placeholder="확장자 입력"> <button class="exeAdd" id="customItemAddBtn">+추가</button>
+				</td>
+			</tr>
+			<tr>
+				<td id="customList" style="border: 1px solid black;">
+					<span id="customCnt" style="margin:5px">-/-</span>
+					<br>
+					<span class="customSpan" id="customItem" style="display: none;">
+						<span id="name">-</span>
+						<button class="exeDelete" id="deleteItemBtn">X</button>
+					</span>
+				</td>
+			</tr>
+			
+		</table>
+	</body>
+	
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+	
+	<script>
+		index = {
+			customCnt : 0 // 커스텀 아이템 갯수
+			, limitCustomItemCnt : 200	// 최대 커스텀 아이템 추가 갯수
+			, itemList : []
+			
+			// 초기화
+			, init : function(){
+				index.getItem();
+				
+				$("#customItemAddBtn").on("click", function(){
+					var addName = $("#addCustomName").val().toLowerCase();	// 확장자는 항상 소문자로 저장
+					index.customItemAdd(addName);
+				})
+			}
+			
+			// DB 조회
+			, getItem : function(){
+				$.ajax({
+					  url: '/item',
+					  type: 'GET',
+					  dataType: 'json',
+					  success: function(data) {
+					    index.setItem(data.itemList);
+					  },
+					  error: function(jqXHR, textStatus, errorThrown) {
+					    console.log(textStatus, errorThrown);
+					  }
+				});
+			}
+			
+			// 데이터 셋팅
+			, setItem : function(dataList){
+				$("[name='defaultItemAdd']").remove();
+				$("[name='customItemAdd']").remove();
+				index.itemList = [];
+				index.customCnt = 0;
+				
+				for(var i=0; i<dataList.length; i++){
+					var data = dataList[i];
+					var type = data.type;
+					var name = data.name;
+					index.itemList.push(name);
+										
+					if(type == "C"){
+						var listRow = $("#customItem").clone();
+						listRow.appendTo($("#customList"));
+						index.addCustomItem(listRow, data);
+						index.customCnt++;
+					}else if(type == "D"){
+						var listRow = $("#defaultItem").clone();
+						listRow.appendTo($("#defaultList"));
+						index.addDefaultItem(listRow, data);
+					}
+				}
+				
+				$("#customCnt").text(index.customCnt + "/" + index.limitCustomItemCnt);
+				
+				
+			}
+			
+			// 고정 확장자 표시
+			, addDefaultItem(listRow, data){
+				var useYn = data.use_yn;
+				var name = data.name;
+				listRow.attr("id", "defaultItem_" + data.name)
+				listRow.attr("name", "defaultItemAdd");
+				
+				listRow.find("#name").text(name);
+				if(useYn == "Y"){
+					listRow.find("#useChk").prop('checked', true);
+				}
+				
+				listRow.find("#useChk").on("change", data, function(event){
+					var status = $(this).is(":checked");
+					
+					index.updateDefaultItem(event.data.name, status?"Y":"N");					
+				});
+				
+				listRow.show();
+			}
+			
+			// 커스텀 확장자 표시
+			, addCustomItem(listRow, data){
+				var name = data.name;
+				listRow.attr("id", "customItem_" + data.name)
+				listRow.attr("name", "customItemAdd");
+				
+				listRow.find("#name").text(name);
+				listRow.find("#deleteItemBtn").on("click", data, function(event){
+					index.customItemDel(event.data.name);
+				})
+				
+				listRow.show();
+			}
+			
+			// 커스텀 확장자 추가
+			, customItemAdd : function(addName){
+				if(index.customCnt >= index.limitCustomItemCnt){
+					alert("확장자를 더이상 추가할 수 없습니다");
+					$("#addCustomName").val("");
+					return;					
+				}
+				
+				if(!index.chkAddItemText(addName)){
+					alert("확장자는 영문 및 숫자로만 작성할 수 있습니다.");
+					$("#addCustomName").val("");
+					return;	
+				}
+				
+				if(addName.length>20){
+					alert("확장자 20자까지 지정할 수 있습니다.");
+					$("#addCustomName").val("");
+					return;	
+				}
+				
+				for(var i=0; i<index.itemList.length; i++){
+					var itemName = index.itemList[i];
+					if(itemName == addName){
+						alert("중복된 확장자가 있습니다.");
+						$("#addCustomName").val("");
+					return;	
+					}
+				}
+				
+				var param = {
+					name : addName
+				}
+				
+				$.ajax({
+					  url: '/item',
+					  type: 'POST',
+					  data : param,
+					  dataType: 'json',
+					  success: function(data) {
+					  	$("#addCustomName").val("");
+					  	index.getItem();
+					  },
+					  error: function(jqXHR, textStatus, errorThrown) {
+					    console.log(textStatus, errorThrown);
+					  }
+				});
+			}
+			
+			// 확장자는 영문/숫자만 가능
+			, chkAddItemText : function(addName){
+				var englishAndNumbersRegex = /^[A-Za-z0-9]*$/;
+    			return englishAndNumbersRegex.test(addName);
+			}
+			
+			// 커스텀 확장자 삭제
+			, customItemDel : function(name){
+				var param = {
+					name : name
+				}
+				
+				$.ajax({
+					  url: '/item',
+					  type: 'DELETE',
+					  data : param,
+					  dataType: 'json',
+					  success: function(data) {
+					  	index.getItem();	// 수정 후 아이템 다시 불러오기
+					  },
+					  error: function(jqXHR, textStatus, errorThrown) {
+					    console.log(textStatus, errorThrown);
+					  }
+				});
+				
+			}
+			
+			// 기본 확장자 상태 수정
+			, updateDefaultItem : function(name, useYn){
+				console.log("--- 기본값 수정 ---");
+				console.log(name, useYn);
+				var param = {
+					name : name
+					, useYn : useYn
+				}
+				
+				$.ajax({
+					  url: '/item',
+					  type: 'PUT',
+					  data : param,
+					  dataType: 'json',
+					  success: function(data) {
+					  	index.getItem();	// 수정 후 아이템 다시 불러오기
+					  },
+					  error: function(jqXHR, textStatus, errorThrown) {
+					    console.log(textStatus, errorThrown);
+					  }
+				});
+			}
+		}
+		
+		$(document).ready(function(){
+			index.init();
+		});
+	</script>
+	
+</html>
