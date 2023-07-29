@@ -148,6 +148,12 @@
 			
 			// 커스텀 확장자 추가
 			, customItemAdd : function(addName){
+				if(addName == ""){
+					alert("확장자를 입력해주세요");
+					$("#addCustomName").val("");
+					return;
+				}
+				
 				if(index.customCnt >= index.limitCustomItemCnt){
 					alert("확장자를 더이상 추가할 수 없습니다");
 					$("#addCustomName").val("");
